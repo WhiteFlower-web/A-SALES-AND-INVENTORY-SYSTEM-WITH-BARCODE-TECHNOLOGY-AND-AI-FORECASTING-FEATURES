@@ -68,7 +68,7 @@ Running the Application
 # For PHP / Laravel:
 php artisan serve
 
-# For Node.js (if applicable):
+# For Node.js:
 npm run dev
 
 
