@@ -1,0 +1,330 @@
+-- ============================================================================
+-- JJ JUDEJUSH STORES - FINAL UNIFIED DATABASE SCHEMA & RELATIONSHIPS
+-- Engine: InnoDB | Charset: utf8mb4_unicode_ci
+-- ============================================================================
+
+CREATE DATABASE IF NOT EXISTS `jj_stores`
+CHARACTER SET utf8mb4 
+COLLATE utf8mb4_unicode_ci;
+
+USE `jj_stores`;
+
+SET FOREIGN_KEY_CHECKS = 0;
+
+
+-- ============================================================================
+-- 1. STORES TABLE (Central Branch & Store Hub)
+-- ============================================================================
+CREATE TABLE `stores` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `store_name` VARCHAR(150) NOT NULL,
+    `branch_code` VARCHAR(50) UNIQUE NOT NULL,
+    `address` TEXT NULL,
+    `contact_number` VARCHAR(50) NULL,
+    `status` ENUM('Active', 'Inactive') DEFAULT 'Active',
+    `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================================
+-- 2. USERS TABLE (Accounts, Cashiers, Admins, Staff)
+-- ============================================================================
+CREATE TABLE `users` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `store_id` INT NOT NULL DEFAULT 1,
+    `fullname` VARCHAR(150) NOT NULL,
+    `username` VARCHAR(100) UNIQUE DEFAULT NULL,
+    `email` VARCHAR(150) UNIQUE DEFAULT NULL,
+    `password` VARCHAR(255) NOT NULL,
+    `role` VARCHAR(50) NOT NULL DEFAULT 'Sales Staff',
+    `contact_number` VARCHAR(50) DEFAULT NULL,
+    `avatar` VARCHAR(255) DEFAULT NULL,
+    `profile_image` VARCHAR(255) DEFAULT NULL,
+    `status` ENUM('Online', 'Offline') DEFAULT 'Offline',
+    `is_verified` TINYINT(1) NOT NULL DEFAULT 0,
+    `failed_attempts` INT NOT NULL DEFAULT 0,
+    `lockout_until` DATETIME DEFAULT NULL,
+    `last_activity` DATETIME DEFAULT NULL,
+    `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    KEY `idx_user_store` (`store_id`),
+    KEY `idx_login_auth` (`email`, `username`),
+    CONSTRAINT `fk_users_store` FOREIGN KEY (`store_id`) 
+        REFERENCES `stores` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================================
+-- 3. PRODUCTS TABLE (Catalog, Inventory, Barcode, Pricing)
+-- ============================================================================
+CREATE TABLE `products` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `store_id` INT NOT NULL DEFAULT 1,
+    `sku` VARCHAR(100) DEFAULT NULL,
+    `barcode` VARCHAR(100) DEFAULT NULL,
+    `product_name` VARCHAR(255) NOT NULL,
+    `category` VARCHAR(150) NOT NULL DEFAULT 'General',
+    `price` DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    `cost_price` DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    `unit_cost` DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    `discount_price` DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    `is_on_sale` TINYINT(1) NOT NULL DEFAULT 0,
+    `stock` INT NOT NULL DEFAULT 0,
+    `min_stock` INT NOT NULL DEFAULT 5,
+    `is_vat_exempt` TINYINT(1) NOT NULL DEFAULT 0,
+    `packaging_type` VARCHAR(50) NOT NULL DEFAULT 'Box',
+    `pcs_per_box` INT NOT NULL DEFAULT 1,
+    `image` VARCHAR(255) DEFAULT NULL,
+    `image_path` VARCHAR(255) DEFAULT NULL,
+    `is_verified` TINYINT(1) NOT NULL DEFAULT 0,
+    `verified_by` VARCHAR(100) DEFAULT NULL,
+    `verified_at` DATETIME DEFAULT NULL,
+    `is_deleted` TINYINT(1) NOT NULL DEFAULT 0,
+    `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    KEY `idx_products_store` (`store_id`),
+    KEY `idx_sku_barcode` (`sku`, `barcode`),
+    CONSTRAINT `fk_products_store` FOREIGN KEY (`store_id`) 
+        REFERENCES `stores` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================================
+-- 4. SALES TABLE (Invoice Transactions & Inward Receipts)
+-- ============================================================================
+CREATE TABLE `sales` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `store_id` INT NOT NULL DEFAULT 1,
+    `user_id` INT DEFAULT NULL,
+    `product_id` INT DEFAULT NULL,
+    `quantity` INT DEFAULT 1,
+    `receipt_number` VARCHAR(100) NULL,
+    `receipt_no` VARCHAR(100) NULL,
+    `customer_name` VARCHAR(150) DEFAULT 'Walk-in',
+    `subtotal` DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    `discount_amount` DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    `discount_type` VARCHAR(50) DEFAULT 'NONE',
+    `total_price` DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    `payment_method` VARCHAR(50) DEFAULT 'Cash',
+    `reference_no` VARCHAR(100) DEFAULT NULL,
+    `cash_received` DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    `change_amount` DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    `vatable_sales` DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    `vat_amount` DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    `vat_exempt_sales` DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    KEY `idx_sales_store` (`store_id`),
+    KEY `idx_sales_user` (`user_id`),
+    KEY `idx_sales_product` (`product_id`),
+    CONSTRAINT `fk_sales_store` FOREIGN KEY (`store_id`) 
+        REFERENCES `stores` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT `fk_sales_user` FOREIGN KEY (`user_id`) 
+        REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
+    CONSTRAINT `fk_sales_product` FOREIGN KEY (`product_id`) 
+        REFERENCES `products` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================================
+-- 5. SALE_ITEMS TABLE (Detailed Breakdown per Line Item)
+-- ============================================================================
+CREATE TABLE `sale_items` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `sale_id` INT NOT NULL,
+    `product_id` INT NOT NULL,
+    `product_name` VARCHAR(255) NULL,
+    `quantity` INT NOT NULL DEFAULT 1,
+    `unit_price` DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    `discount_amount` DECIMAL(10, 2) DEFAULT 0.00,
+    `total_price` DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    KEY `idx_sale_item_sale` (`sale_id`),
+    KEY `idx_sale_item_prod` (`product_id`),
+    CONSTRAINT `fk_sale_items_sale` FOREIGN KEY (`sale_id`) 
+        REFERENCES `sales` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT `fk_sale_items_product` FOREIGN KEY (`product_id`) 
+        REFERENCES `products` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================================
+-- 6. STOCK_HISTORY TABLE (Restocks, Movement Trail & Audits)
+-- ============================================================================
+CREATE TABLE `stock_history` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `store_id` INT NOT NULL DEFAULT 1,
+    `product_id` INT NOT NULL,
+    `user_id` INT DEFAULT NULL,
+    `product_name` VARCHAR(255) DEFAULT '',
+    `type` VARCHAR(50) NOT NULL COMMENT 'IN, OUT, SALE, AUDIT, ADJUST, RESTOCK, DELETE, RESTORE',
+    `quantity` INT NOT NULL DEFAULT 0,
+    `stock_after` INT NOT NULL DEFAULT 0,
+    `notes` TEXT DEFAULT NULL,
+    `remarks` VARCHAR(255) DEFAULT NULL,
+    `reference_no` VARCHAR(100) DEFAULT NULL,
+    `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    KEY `idx_stock_history_store` (`store_id`),
+    KEY `idx_stock_history_prod` (`product_id`),
+    KEY `idx_stock_history_user` (`user_id`),
+    CONSTRAINT `fk_history_store` FOREIGN KEY (`store_id`) 
+        REFERENCES `stores` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT `fk_history_product` FOREIGN KEY (`product_id`) 
+        REFERENCES `products` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT `fk_history_user` FOREIGN KEY (`user_id`) 
+        REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================================
+-- 7. PENDING_REQUESTS TABLE (Staff Approvals for Edit / Delete)
+-- ============================================================================
+CREATE TABLE `pending_requests` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `store_id` INT NOT NULL DEFAULT 1,
+    `product_id` INT DEFAULT NULL,
+    `user_id` INT DEFAULT NULL,
+    `request_type` VARCHAR(50) NOT NULL DEFAULT 'STOCK' COMMENT 'STOCK, EDIT, DELETE, RESTORE',
+    `requested_by` VARCHAR(255) DEFAULT 'Staff',
+    `payload` LONGTEXT DEFAULT NULL,
+    `status` ENUM('PENDING', 'APPROVED', 'REJECTED') DEFAULT 'PENDING',
+    `admin_remarks` TEXT DEFAULT NULL,
+    `reviewed_by` VARCHAR(100) DEFAULT NULL,
+    `reviewed_at` DATETIME DEFAULT NULL,
+    `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    KEY `idx_pending_store` (`store_id`),
+    KEY `idx_pending_product` (`product_id`),
+    KEY `idx_pending_user` (`user_id`),
+    CONSTRAINT `fk_pending_store` FOREIGN KEY (`store_id`) 
+        REFERENCES `stores` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT `fk_pending_product` FOREIGN KEY (`product_id`) 
+        REFERENCES `products` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT `fk_pending_user` FOREIGN KEY (`user_id`) 
+        REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================================
+-- 8. NOTIFICATIONS TABLE (Low Stock & Restock Alerts)
+-- ============================================================================
+CREATE TABLE `notifications` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `store_id` INT NOT NULL DEFAULT 1,
+    `user_id` INT DEFAULT NULL,
+    `product_id` INT DEFAULT NULL,
+    `title` VARCHAR(255) NOT NULL,
+    `message` TEXT NOT NULL,
+    `is_read` TINYINT(1) NOT NULL DEFAULT 0,
+    `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    KEY `idx_notif_store` (`store_id`),
+    KEY `idx_notif_user` (`user_id`),
+    KEY `idx_notif_product` (`product_id`),
+    CONSTRAINT `fk_notif_store` FOREIGN KEY (`store_id`) 
+        REFERENCES `stores` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT `fk_notif_user` FOREIGN KEY (`user_id`) 
+        REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT `fk_notif_product` FOREIGN KEY (`product_id`) 
+        REFERENCES `products` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================================
+-- 9. AUDIT_LOGS TABLE (System Audit Trail)
+-- ============================================================================
+CREATE TABLE `audit_logs` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `store_id` INT NOT NULL DEFAULT 1,
+    `user_id` INT DEFAULT NULL,
+    `action` VARCHAR(255) NOT NULL,
+    `page_module` VARCHAR(100) DEFAULT 'System',
+    `details` TEXT NOT NULL,
+    `ip_address` VARCHAR(45) DEFAULT '127.0.0.1',
+    `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    KEY `idx_audit_store` (`store_id`),
+    KEY `idx_audit_user` (`user_id`),
+    CONSTRAINT `fk_audit_store` FOREIGN KEY (`store_id`) 
+        REFERENCES `stores` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT `fk_audit_user` FOREIGN KEY (`user_id`) 
+        REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================================
+-- 10. SETTINGS TABLE (Thermal Printer, BIR Tax, E-Wallets & Store Config)
+-- ============================================================================
+CREATE TABLE `settings` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `store_id` INT NOT NULL DEFAULT 1,
+    `user_id` INT DEFAULT NULL,
+    `store_name` VARCHAR(255) NOT NULL DEFAULT 'JJ JUDEJUSH',
+    `store_address` TEXT DEFAULT 'Kapak Palengke Brgy 12 Caloocan City',
+    `contact_number` VARCHAR(50) DEFAULT '+63 900 000 0000',
+    `footer_message` VARCHAR(255) DEFAULT 'Thank you for your purchase!',
+    
+    -- BIR TAX & VAT
+    `tin_number` VARCHAR(50) DEFAULT '000-000-000-000-VAT',
+    `min_number` VARCHAR(50) DEFAULT 'MIN-2026-00001',
+    `serial_number` VARCHAR(50) DEFAULT 'SN-JJ-0001',
+    `vat_rate` DECIMAL(5, 2) NOT NULL DEFAULT 12.00,
+    `vat_inclusive` TINYINT(1) NOT NULL DEFAULT 1,
+    
+    -- THERMAL PRINTER HARDWARE
+    `printer_type` ENUM('58mm', '80mm') NOT NULL DEFAULT '58mm',
+    `paper_width` VARCHAR(20) DEFAULT '58mm',
+    `printer_connection` ENUM('USB', 'Network', 'Bluetooth', 'Browser') DEFAULT 'Browser',
+    `printer_ip` VARCHAR(50) DEFAULT '192.168.1.100',
+    `printer_feed_lines` INT NOT NULL DEFAULT 3,
+    `auto_cut_paper` TINYINT(1) DEFAULT 1,
+    `receipt_font_size` ENUM('Small', 'Medium', 'Large') DEFAULT 'Medium',
+    
+    -- BRANDING & BARCODE
+    `store_logo` VARCHAR(255) NULL,
+    `show_logo` TINYINT(1) DEFAULT 1,
+    `include_qr` TINYINT(1) DEFAULT 1,
+    `show_barcode` TINYINT(1) DEFAULT 1,
+    `barcode_type` VARCHAR(20) DEFAULT 'CODE128',
+    
+    -- AUTOMATION & E-WALLETS
+    `auto_print` TINYINT(1) DEFAULT 0,
+    `auto_backup` TINYINT(1) DEFAULT 1,
+    `ai_analysis` TINYINT(1) DEFAULT 1,
+    `ai_enabled` TINYINT(1) DEFAULT 1,
+    `gcash_name` VARCHAR(150) NULL,
+    `gcash_number` VARCHAR(50) NULL,
+    `gcash_qr` VARCHAR(255) NULL,
+    `maya_name` VARCHAR(150) NULL,
+    `maya_number` VARCHAR(50) NULL,
+    `maya_qr` VARCHAR(255) NULL,
+    `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    KEY `idx_settings_store` (`store_id`),
+    KEY `idx_settings_user` (`user_id`),
+    CONSTRAINT `fk_settings_store` FOREIGN KEY (`store_id`) 
+        REFERENCES `stores` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT `fk_settings_user` FOREIGN KEY (`user_id`) 
+        REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+SET FOREIGN_KEY_CHECKS = 1;
+
+-- ============================================================================
+-- SEED DATA (Default Stores, Initial Users, Default Settings & Sample Product)
+-- ============================================================================
+
+-- 1. Default Stores
+INSERT INTO `stores` (`id`, `store_name`, `branch_code`, `address`, `contact_number`, `status`) VALUES
+(1, 'JJ JUDEJUSH - Main Branch', 'STORE-01', 'Kapak Palengke Brgy 12 Caloocan City', '+63 900 000 0000', 'Active'),
+(2, 'JJ JUDEJUSH - Store 2', 'STORE-02', 'Caloocan Branch 2', '+63 900 000 0001', 'Active');
+
+-- 2. Default Users (Password: admin123)
+INSERT INTO `users` (`id`, `store_id`, `fullname`, `username`, `email`, `password`, `role`, `contact_number`, `is_verified`, `status`) VALUES
+(1, 1, 'Kherleen', 'Owner', 'kherleenestrechoo@gmail.com', '$2y$10$wT8KkV3yB4WpL4gR6jHh2.t6J6O7yB6G0dZ9VzUu2yZ6B3l4Q9mOe', 'Admin', '09123456789', 1, 'Online'),
+(2, 1, 'Ralph', 'inventory', 'kherleens@gmail.com', '$2y$10$wT8KkV3yB4WpL4gR6jHh2.t6J6O7yB6G0dZ9VzUu2yZ6B3l4Q9mOe', 'Inventory Staff', '09123456788', 1, 'Offline'),
+(3, 1, 'John Albert', 'cashier', 'kherleenm@gmail.com', '$2y$10$wT8KkV3yB4WpL4gR6jHh2.t6J6O7yB6G0dZ9VzUu2yZ6B3l4Q9mOe', 'Sales Staff', '09123456787', 1, 'Offline');
+
+-- 3. Default Settings
+INSERT INTO `settings` (
+    `id`, `store_id`, `user_id`, `store_name`, `store_address`, `contact_number`, `footer_message`,
+    `tin_number`, `min_number`, `serial_number`, `vat_rate`, `vat_inclusive`,
+    `printer_type`, `paper_width`, `printer_connection`, `receipt_font_size`,
+    `show_logo`, `include_qr`, `show_barcode`, `auto_print`, `auto_backup`,
+    `ai_analysis`, `ai_enabled`, `gcash_name`, `gcash_number`, `maya_name`, `maya_number`
+) VALUES (
+    1, 1, 1,
+    'JJ JUDEJUSH', 'Kapak Palengke Brgy 12 Caloocan City', '+63 900 000 0000', 'Maraming Salamat! Please come again.',
+    '123-456-789-000-VAT', 'MIN-2026-CAL-001', 'SN-JJ-2026-0001', 12.00, 1,
+    '58mm', '58mm', 'Browser', 'Medium',
+    1, 1, 1, 0, 1,
+    1, 1, 'JJ Store Cashier', '09123456789', 'JJ Store Merchant', '09987654321'
+);
+
+-- 4. Sample Product (Para may test product agad)
+INSERT INTO `products` (`id`, `store_id`, `sku`, `barcode`, `product_name`, `category`, `price`, `cost_price`, `stock`, `min_stock`) VALUES
+(1, 1, 'SKU-001', '4800016644007', 'Sample Product 1', 'General', 50.00, 35.00, 100, 10);
